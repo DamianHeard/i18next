@@ -35,18 +35,19 @@ function getLastOfPath(object, path, Empty) {
     return !object || typeof object === 'string';
   }
 
+  // Don't allow insertions outside the instances itself to guard against
+  // proptype pollution: https://snyk.io/vuln/SNYK-JS-I18NEXT-1065979
+  let allowInsertions = Boolean(Empty);
+
   const stack = typeof path !== 'string' ? [].concat(path) : path.split('.');
   while (stack.length > 1) {
     if (canNotTraverseDeeper()) return {};
 
     const key = cleanKey(stack.shift());
-    if (!object[key] && Empty) object[key] = new Empty();
-    // prevent prototype pollution
-    if (Object.prototype.hasOwnProperty.call(object, key)) {
-      object = object[key];
-    } else {
-      object = {};
-    }
+    if (!object[key] && allowInsertions) object[key] = new Empty();
+
+    allowInsertions = allowInsertions && Object.prototype.hasOwnProperty.call(object, key);
+    object = object[key];
   }
 
   if (canNotTraverseDeeper()) return {};
@@ -58,12 +59,13 @@ function getLastOfPath(object, path, Empty) {
 
 export function setPath(object, path, newValue) {
   const { obj, k } = getLastOfPath(object, path, Object);
-
-  obj[k] = newValue;
+  if (obj && k) obj[k] = newValue;
 }
 
 export function pushPath(object, path, newValue, concat) {
   const { obj, k } = getLastOfPath(object, path, Object);
+
+  if (!obj || !k) return;
 
   obj[k] = obj[k] || [];
   if (concat) obj[k] = obj[k].concat(newValue);
